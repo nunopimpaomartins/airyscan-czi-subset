@@ -1,17 +1,17 @@
-# airyscan-czi-subsample
+# airyscan-czi-subset
 Repository with python scripts and notebooks to processes Airyscan data too large for processing in a limited RAM workstation. 
 
 These scripts and pipelines are intended for pre-processing Airyscan raw data which is too large and cannot be processed as a single Z stack. They have been prepared for mosaic datasets, Zeiss Zen will process each tile independenlty.
 
 The processing bottleneck is in the number of Z planes that can be processes. 
-From my experience, it requires ~70 GB of RAM / 100 z planes of images with shape `(4098 x 4098)`. For a workstation with 256 GB of RAM, ~ 300 z planes can be processed at a time. In workstations with less RAM, one has to split Z stacks into smaller subsets.
+From my experience, it requires ~70 GB of RAM / 100 z planes of images with shape `(4098 x 4098)`. For a workstation with 256 GB of RAM, ~300 z planes can be processed at a time. In workstations with less RAM, one has to split Z stacks into smaller subsets.
 
 The current workflow consists of splitting raw Airyscan data into substacks for Airyscan processing in Zeiss Zen, splitting processed data into the individual tiles, stitch then in 3D, then perform the final 2D/mosaic stitching for the complete dataset.
 Stitching is done with the [`multiview stitcher`](https://github.com/multiview-stitcher/multiview-stitcher/tree/main) and using OME Zarr as the data format.
 
-### Pipeline
-1. Process RAW data in `Zeiss Zen` with the Zen compatible script
-    - using: `Airyscan_subset_split_data.czmac`
+## Pipeline
+1. Split RAW data into multiple sub-sets in `Zeiss Zen` with script
+    - `Airyscan_subset_split_data.czmac` <sup>1</sup>
 1. This will generate multiple raw substacks. Processed them individually or in Batch in `Zeiss Zen`
 1. In `conda/mamba`, activate the corresponding environment and run scripts.
 1. For Airyscan processed data, split processed files into individual Tiles
@@ -24,10 +24,33 @@ Stitching is done with the [`multiview stitcher`](https://github.com/multiview-s
 <!-- ![Schematic Pipeline](/media/schematic_processing_pipeline.png) -->
 <img src="./media/schematic_processing_pipeline.png" alt="Schematic pipeline" width="300"/>
 
-___
-## Environment
+<sup>1</sup> - currently, this script only splits data into subsets of the z-stack, the script to split and process airyscan (`Airyscan_Subset_Split_process.czmac`) data has not been fully tested and may not generate the expected results.
 
-___
+## Python processing environment
+
+### Create conda/mamba `env`
+The python scripts require two packages: `pylibczirw` and `multiview-stitcher`, both available via Pypi. These packages have been tested with python version 3.10.
+
+Installation: 
+On your favored terminal application (`conda/mamba command prompt` in Windows or other terminal apps in other OSes)
+```bash
+# create a conda/mamba env
+mamba create -n pyczi python=3.10
+
+# activate the created env
+mamba activate pyczi
+
+# install needed dependencies
+pip install pylibczirw multiview-stitcher
+```
+
+### Build from `yml` file
+You can build the environment using our example file, however this environment is heavier and has many other packages used or tested during processing.
+
+```bash
+# create env using yml file
+mamba env create -f /environments/pyczi_env_20250616_nobuilds.yml
+```
 
 ## Usage
 More detailed usage of each script and their arguments.
@@ -104,6 +127,7 @@ in batch mode it is possible to choose multiple files to process, which can be f
 5. once the list is filled, press `Apply` in the left side panel to run the process
 6. Once finished, open each processed file and resave with compression. See step 7 of [[#Single file mode]].
 
+___
 ### Split Tiles
  script: `splitsave_czi_tile.py`
 
@@ -132,7 +156,7 @@ python splitsave_czi_tile.py --dataPath "/path/to/image/folder/"
 python splitsave_czi_tile.py --dataPath "D:\path\to\image\folder\"
 ```
 
-
+___
 ### Stitch tiles in 3D
 script: `1_multiview_stitcher_3d.py`
 
@@ -176,7 +200,7 @@ Arguments
 --extension ".czi" # The extension of the files to be processed
 ```
 
-
+___
 ### Stitch tiles in 2d for full mosaic
 script: `2_multiview_stitcher_2d.py`
 
