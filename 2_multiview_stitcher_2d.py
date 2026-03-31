@@ -82,7 +82,7 @@ def get_mosaic_shape_from_parent_file(data_path, file_name, name_substring, file
     parent_filelist = os.listdir(parent_path)
     parent_filelist_filtered = [f for f in parent_filelist if f.endswith('.czi') and file_name in f]
     if len(parent_filelist_filtered) == 0:
-        raise FileNotFoundError("No parent file found for %s in %s" % file_name, parent_path)
+        raise FileNotFoundError("No parent file found for %s in %s" % (file_name, parent_path))
     
     parent_filelist_filtered.sort()
     parent_file_path = parent_path / parent_filelist_filtered[0]
