@@ -24,6 +24,8 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument("--dataPath", help="The path to your data")
 parser.add_argument("--extension", help="The extension of the files to be processed", default='.zarr')
 parser.add_argument("--metadataSubstring", type=str, help="The substring to use for metadata extraction", default='AcquisitionBlock')
+parser.add_argument("--tilePruningMethod", type=str, help="The method to use for tile pruning before registration. Options are: 'keep_axis_aligned', 'alternating_pattern', 'shortest_paths_overlap_weighted', 'otsu_threshold_on_overlap'", default='keep_axis_aligned')
+parser.add_argument("--overlapTolerance", type=float, help="Extended overlap tolerance between tiles in percentage (between 0 and 1)", default=0)
 
 args = parser.parse_args()
 
@@ -121,7 +123,7 @@ def get_mosaic_shape_from_parent_file(data_path, file_name, name_substring, file
     return n_rows, n_cols
 
 
-def tile_registration(data_array):
+def tile_registration(data_array, overlap_tolerance, tile_pruning_method):
     """
     Wrapping function for tile stitching and registration. 
     """
@@ -167,9 +169,9 @@ def tile_registration(data_array):
             registration_binning={'z': 1, 'y': 2, 'x': 2},
             reg_channel_index=0,
             transform_key=curr_transform_key,
-            overlap_tolerance=0,
+            overlap_tolerance=overlap_tolerance,
             new_transform_key='affine_registered',
-            pre_registration_pruning_method="keep_axis_aligned",
+            pre_registration_pruning_method=tile_pruning_method,
         )
     
     # print obtained registration parameters
@@ -180,7 +182,7 @@ def tile_registration(data_array):
     return params, affine
 
 
-def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock'):
+def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock', tile_pruning_method='keep_axis_aligned', overlap_tolerance=0):
     print('Processing folder: %s' % datapath)
     filelist = os.listdir(datapath)
 
@@ -355,7 +357,7 @@ def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock'):
             msims.append(msim)
 
         try:
-            params, affine = tile_registration(msims)
+            params, affine = tile_registration(msims, overlap_tolerance, tile_pruning_method)
         except:
             print('Tile registration failed. Skipping this tile set.')
             print('====================')
@@ -391,4 +393,4 @@ def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock'):
 
 
 if __name__ == '__main__':
-    main(datapath=basedir, extension=args.extension, metadata_substring=args.metadataSubstring)
+    main(datapath=basedir, extension=args.extension, metadata_substring=args.metadataSubstring, tile_pruning_method=args.tilePruningMethod, overlap_tolerance=args.overlapTolerance)
