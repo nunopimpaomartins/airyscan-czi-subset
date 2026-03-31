@@ -20,6 +20,7 @@ from multiview_stitcher import (
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--dataPath", help="The path to your data")
 parser.add_argument("--extension", help="The extension of the files to be processed", default='.czi')
+parser.add_argument("--overlapTolerance", type=float, help="Extended overlap tolerance between tiles in percentage (between 0 and 1)", default=0)
 
 args = parser.parse_args()
 
@@ -80,7 +81,7 @@ def get_tile_grid_position_from_tile_index(tile_index, z_planes):
         'x': 0
     }
 
-def tile_registration(data_array):
+def tile_registration(data_array, overlap_tolerance):
     """
     Wrapping function for tile stitching and registration. 
     """
@@ -126,7 +127,7 @@ def tile_registration(data_array):
             registration_binning={'z': 1, 'y': 2, 'x': 2},
             reg_channel_index=0,
             transform_key=curr_transform_key,
-            overlap_tolerance=0,
+            overlap_tolerance=overlap_tolerance,
             new_transform_key='affine_registered',
             pre_registration_pruning_method="keep_axis_aligned",
         )
@@ -139,7 +140,7 @@ def tile_registration(data_array):
     return params, affine
 
 
-def main(datapath='.', extension='.czi'):
+def main(datapath='.', extension='.czi', overlap_tolerance=0):
     print('Processing folder: %s' % datapath)
     filelist = os.listdir(datapath)
 
@@ -296,7 +297,7 @@ def main(datapath='.', extension='.czi'):
 
                 msims.append(msim)
 
-            params, affine = tile_registration(msims)
+            params, affine = tile_registration(msims, overlap_tolerance=overlap_tolerance)
             
             try:
                 save_name = filelist_savenames[0][:filelist_savenames[0].index('_sub')] + '_tile'+ str(i + 1).zfill(2) + '.zarr'
@@ -331,4 +332,4 @@ def main(datapath='.', extension='.czi'):
 
 
 if __name__ == '__main__':
-    main(datapath=basedir, extension=args.extension)
+    main(datapath=basedir, extension=args.extension, overlap_tolerance=args.overlapTolerance)
