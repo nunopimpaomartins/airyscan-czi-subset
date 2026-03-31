@@ -36,12 +36,12 @@ if args.dataPath is None:
 basedir = Path(args.dataPath)
 
 # get the image reader based on the file extension
-if args.extension == '.czi':
-    # from bioio import BioImage
-    # import bioio_czi
-    from pylibCZIrw import czi as pyczi
-else:
-    from tifffile import imread
+# if args.extension == '.czi':
+#     # from bioio import BioImage
+#     # import bioio_czi
+#     from pylibCZIrw import czi as pyczi
+# else:
+#     from tifffile import imread
 
 
 def get_unique_names(array, substring='.'):
