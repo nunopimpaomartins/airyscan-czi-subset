@@ -22,7 +22,7 @@ from pylibCZIrw import czi as pyczi # to get mosaic shape from czi file
 
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--dataPath", help="The path to your data")
-parser.add_argument("--extension", help="The extension of the files to be processed", default='.zarr')
+parser.add_argument("--extension", help="The extension of the files to be processed. Options: '.zarr', '.czi'", default='.zarr')
 parser.add_argument("--metadataSubstring", type=str, help="The substring to use for metadata extraction", default='AcquisitionBlock')
 parser.add_argument("--tilePruningMethod", type=str, help="The method to use for tile pruning before registration. Options are: 'keep_axis_aligned', 'alternating_pattern', 'shortest_paths_overlap_weighted', 'otsu_threshold_on_overlap'", default='keep_axis_aligned')
 parser.add_argument("--overlapTolerance", type=float, help="Extended overlap tolerance between tiles in percentage (between 0 and 1)", default=0)
@@ -186,6 +186,9 @@ def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock', 
     print('Processing folder: %s' % datapath)
     filelist = os.listdir(datapath)
 
+    if extension.find('.') == -1:
+        extension = '.' + extension
+    
     filelist = [f for f in filelist if f.endswith(extension)]
     filelist.sort()
     print('Nr of czi files in dir: %i' % len(filelist))
