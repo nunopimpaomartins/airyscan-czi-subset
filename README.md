@@ -58,8 +58,10 @@ More detailed usage of each script and their arguments.
 ### Create Z-stack subset
 script: `Airyscan_subset_split_data.czmac`
 
+A special thanks to Anna Pezzarossa (Champalimaud Foundation) for providing the basis and the initial macro for processing this data.
+
 __Motivation__: 
-Airyscan processing in 3D requires plenty of RAM to process stacks. From my experience and from Anna Pezzarossa feedback, a 256 GB RAM machine can process Z-stacks with around 300 z planes.
+Airyscan processing in 3D requires plenty of RAM to process stacks. From my experience and from Anna Pezzarossa's feedback, a 256 GB RAM machine can process Z-stacks with around 300 z planes.
 To process data with larger z-stacks, we need to split the datasets into subsets of the same data.
 
 __Goal__: 
@@ -186,18 +188,19 @@ $ cd path\to\script\folder\
 3. then run the script and add the necessary arguments (see end of section for more information)
 ```bash
 # if using Mac or Linux
-python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".czi"
+python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".czi" --overlapTolerance 0
 #in linux, use `tee` to save console output to file
-python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".czi" | tee /path/to/image/folder/log_name.txt
+python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".czi" --overlapTolerance 0 | tee /path/to/image/folder/log_name.txt
 
 # if using Windows
-python splitsave_czi_tile.czi.py --dataPath "D:\path\to\image\folder" --extension ".czi"
+python splitsave_czi_tile.czi.py --dataPath "D:\\path\\to\\image\\folder" --extension ".czi" --overlapTolerance 0
 ```
 
 Arguments
 ```shell
 --dataPath "/path/to/image/folder/" # the path to your data
 --extension ".czi" # The extension of the files to be processed
+--overlapTolerance # a tolerance overlap value, allowing stitching for more than the predefined value when there is sample drift
 ```
 
 ___
@@ -230,18 +233,20 @@ $ cd path\to\script\folder\
 3. then run the script and add the necessary arguments (see end of section for more information)
 ```bash
 # if using Mac or Linux
-python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".zarr" --metadataSubstring "AcquisitionBlock"
+python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".zarr" --metadataSubstring "AcquisitionBlock" --tilePruningMethod "alternating_pattern" --overlapTolerance 0.15
 #in linux, use `tee` to save console output to file
-python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".zarr" --metadataSubstring "AcquisitionBlock" | tee /path/to/image/folder/log_name.txt
+python 1_multiview_stitcher_3d.py --dataPath "/path/to/image/folder/" --extension ".zarr" --metadataSubstring "AcquisitionBlock"  --tilePruningMethod "alternating_pattern" --overlapTolerance 0.15 | tee /path/to/image/folder/log_name.txt
 
 # if using Windows
-python splitsave_czi_tile.czi.py --dataPath "D:\path\to\image\folder" --extension ".zarr" --metadataSubstring "AcquisitionBlock"
+python splitsave_czi_tile.czi.py --dataPath "D:\\path\\to\\image\\folder" --extension ".zarr" --metadataSubstring "AcquisitionBlock" --tilePruningMethod "alternating_pattern" --overlapTolerance 0.15
 ```
 Arguments
 ```shell
 --dataPath "/path/to/image/folder/" # the path to your data
 --extension ".zarr" # The extension of the files to be processed
 --metadataSubstring "_AcquisitioBlock" # the subtring from a czi file in a parent folder to look for metadata. Will fetch the stack position in metadata. i.e. name_AcquisitionBlock3 -> 3
+--tilePruningMethod # manually define multiview-stitcher's tile pruning method
+--overlapTolerance # a tolerance overlap value, allowing stitching for more than the predefined value when there is sample drift
 ```
 
 
