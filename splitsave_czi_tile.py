@@ -2,6 +2,7 @@ import os
 from pathlib import Path
 import argparse
 from tqdm import tqdm
+import numpy as np
 
 from bioio import BioImage
 import bioio_czi
@@ -71,6 +72,15 @@ def main(datapath='.', extension='.czi'):
                 tile_save_path = str(savedir) + '/' + filename_noext + '_tile' + str(tile+1).zfill(2) + '.czi'
                 print('Tile save path:', tile_save_path)
 
+                if img_data_tile.shape[2] != img.dims['Z'][0]:
+                    print('Warning: Z dimension of tile data does not match original image, filling with black slices')
+                    # create new array with same shape as original image, but with tile data in the correct position and black slices for missing Z planes
+                    new_shape = list(img_data_tile.shape)
+                    new_shape[2] = img.dims['Z'][0]
+                    img_data_tile_filled = np.zeros(tuple(new_shape), dtype=img_data_tile.dtype)
+                    img_data_tile_filled[:, :, :img_data_tile.shape[2], :, :] = img_data_tile
+                    img_data_tile = img_data_tile_filled
+                
                 with pyczi.create_czi(tile_save_path, exist_ok=True) as czidoc_w:
                     for t in range(img.dims['T'][0]):
                         for c in range(img.dims['C'][0]):
