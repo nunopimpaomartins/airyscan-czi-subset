@@ -26,6 +26,7 @@ parser.add_argument("--extension", help="The extension of the files to be proces
 parser.add_argument("--metadataSubstring", type=str, help="The substring to use for metadata extraction", default='AcquisitionBlock')
 parser.add_argument("--tilePruningMethod", type=str, help="The method to use for tile pruning before registration. Options are: 'keep_axis_aligned', 'alternating_pattern', 'shortest_paths_overlap_weighted', 'otsu_threshold_on_overlap'", default='keep_axis_aligned')
 parser.add_argument("--overlapTolerance", type=float, help="Extended overlap tolerance between tiles in percentage (between 0 and 1)", default=0)
+parser.add_argument("--keepIntermediateFiles", type=bool, help="Whether to keep intermediate OME-Zarr files created for each tile. Options: True, False", default=False)
 
 args = parser.parse_args()
 
@@ -182,7 +183,7 @@ def tile_registration(data_array, overlap_tolerance, tile_pruning_method):
     return params, affine
 
 
-def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock', tile_pruning_method='keep_axis_aligned', overlap_tolerance=0):
+def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock', tile_pruning_method='keep_axis_aligned', overlap_tolerance=0, keep_intermediate_files=False):
     print('Processing folder: %s' % datapath)
     filelist = os.listdir(datapath)
 
@@ -385,7 +386,7 @@ def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock', 
             )
         
         print('Removing temporary files...')
-        if extension == '.czi':
+        if extension == '.czi' and not keep_intermediate_files:
             for itile, tile in enumerate(tqdm(filelist_tiles)):
                 zarr_path = os.path.join(os.path.dirname(get_filename_from_tile_and_channel(datapath, tile)), filelist_savenames[itile])
                 if os.path.exists(zarr_path):
@@ -396,4 +397,4 @@ def main(datapath='.', extension='.czi', metadata_substring='AcquisitionBlock', 
 
 
 if __name__ == '__main__':
-    main(datapath=basedir, extension=args.extension, metadata_substring=args.metadataSubstring, tile_pruning_method=args.tilePruningMethod, overlap_tolerance=args.overlapTolerance)
+    main(datapath=basedir, extension=args.extension, metadata_substring=args.metadataSubstring, tile_pruning_method=args.tilePruningMethod, overlap_tolerance=args.overlapTolerance, keep_intermediate_files=args.keepIntermediateFiles)
