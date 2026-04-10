@@ -21,6 +21,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument("--dataPath", help="The path to your data")
 parser.add_argument("--extension", help="The extension of the files to be processed", default='.czi')
 parser.add_argument("--overlapTolerance", type=float, help="Extended overlap tolerance between tiles in percentage (between 0 and 1)", default=0)
+parser.add_argument("--keepIntermediateFiles", type=bool, help="Whether to keep intermediate OME-Zarr files created for each tile. Options: True, False", default=False)
 
 args = parser.parse_args()
 
@@ -140,7 +141,7 @@ def tile_registration(data_array, overlap_tolerance):
     return params, affine
 
 
-def main(datapath='.', extension='.czi', overlap_tolerance=0):
+def main(datapath='.', extension='.czi', overlap_tolerance=0, keepIntermediateFiles=False):
     print('Processing folder: %s' % datapath)
     filelist = os.listdir(datapath)
 
@@ -320,7 +321,7 @@ def main(datapath='.', extension='.czi', overlap_tolerance=0):
                     fused, output_filename, overwrite=True
                 )
             
-            if extension == '.czi':
+            if extension == '.czi' and not keepIntermediateFiles:
                 print('Removing temporary files...')
                 for itile, tile in enumerate(tqdm(filelist_tiles)):
                     zarr_path = os.path.join(os.path.dirname(get_filename_from_tile_and_channel(datapath, tile)), filelist_savenames[itile])
@@ -332,4 +333,4 @@ def main(datapath='.', extension='.czi', overlap_tolerance=0):
 
 
 if __name__ == '__main__':
-    main(datapath=basedir, extension=args.extension, overlap_tolerance=args.overlapTolerance)
+    main(datapath=basedir, extension=args.extension, overlap_tolerance=args.overlapTolerance, keepIntermediateFiles=args.keepIntermediateFiles)
