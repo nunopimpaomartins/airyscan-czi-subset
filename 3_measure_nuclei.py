@@ -169,7 +169,7 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
             'slice',
             'axis_major_length',
             'axis_minor_length',
-            'moments',
+            # 'moments',
             'euler_number',
             'solidity'
         ]
