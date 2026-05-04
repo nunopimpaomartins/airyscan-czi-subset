@@ -33,7 +33,7 @@ if args.dataPath is None:
 def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nhsester_channel, nucleus_threshold):
     '''
     Get corrected shape measurements for a nucleus by combining the information from the nucleus channel and the nhsester channel. The corrected shape measurements are calculated by creating a combined (union) mask of the nucleus and nhsester channels. The corrected shape measurements include solidity, euler number, area, area of nhsester channel, dna area fraction and nhsester area fraction.
-    returns:
+    returns: a dictionary with the following keys and values:
     - area_corrected: volume of DNA in unblurred data
     - euler_number_corrected: euler number of DNA in unblurred data
     - solidity_corrected: solidity of DNA area
@@ -81,7 +81,14 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
         area_nhsester_corrected = nhsester_crop_measurements[0].area
     
     nhsester_volume_fraction = area_nhsester_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
-    return [area_corrected, euler_number_corrected, solidity_corrected, area_nhsester_corrected, dna_volume_fraction, nhsester_volume_fraction]
+    return {
+        "area_corrected": area_corrected,
+        "euler_number_corrected": euler_number_corrected,
+        "solidity_corrected": solidity_corrected,
+        "area_nhsester_corrected": area_nhsester_corrected,
+        "dna_volume_fraction": dna_volume_fraction,
+        "nhsester_volume_fraction": nhsester_volume_fraction
+    }
 
 
 def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=True, min_voxel_volume=1000):
@@ -142,7 +149,7 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
     print(f"Found {nuclei_labels.max()} objects in the nuclei channel, before filtering")    
     
     nuclei_labels_filtered = remove_small_objects(nuclei_labels, min_size=min_voxel_volume)
-    print(f"Found {nuclei_labels_filtered.max()} objects in the nuclei channel, after filtering with min size {min_voxel_volume} voxels")
+    print(f"Found {np.unique(nuclei_labels_filtered).size - 1} objects in the nuclei channel, after filtering with min size {min_voxel_volume} voxels")
 
     measurements = regionprops_table(
         nuclei_labels_filtered,
@@ -168,19 +175,18 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
         ]
     )
     measurements_df = pd.DataFrame(measurements)
-    # measurements_df_filtered = measurements_df[measurements_df['area'] > min_voxel_volume]
-    print(f"Found {len(measurements_df)} objects with area > {min_voxel_volume} voxels")
 
+    print("Calculating corrected shape measurements for each nucleus...")
     measurements_df[['area_corrected', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
     for row in tqdm(measurements_df.itertuples()):
         bbox_slice = row.slice
         corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
-        measurements_df.at[row.Index, 'area_corrected'] = corrected_stats[0]
-        measurements_df.at[row.Index, 'euler_number_corrected'] = corrected_stats[1]
-        measurements_df.at[row.Index, 'solidity_corrected'] = corrected_stats[2]
-        measurements_df.at[row.Index, 'area_nhsester_corrected'] = corrected_stats[3]
-        measurements_df.at[row.Index, 'dna_volume_fraction'] = corrected_stats[4]
-        measurements_df.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats[5]
+        measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
+        measurements_df.at[row.Index, 'euler_number_corrected'] = corrected_stats['euler_number_corrected']
+        measurements_df.at[row.Index, 'solidity_corrected'] = corrected_stats['solidity_corrected']
+        measurements_df.at[row.Index, 'area_nhsester_corrected'] = corrected_stats['area_nhsester_corrected']
+        measurements_df.at[row.Index, 'dna_volume_fraction'] = corrected_stats['dna_volume_fraction']
+        measurements_df.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats['nhsester_volume_fraction']
 
     print(f"Saving measurements to {save_path}")
     measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements.csv")
