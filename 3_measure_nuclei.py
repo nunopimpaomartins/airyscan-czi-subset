@@ -1,7 +1,7 @@
 import os
 from pathlib import Path
 import argparse
-import tqdm
+from tqdm import tqdm
 import warnings
 warnings.filterwarnings("ignore", category=UserWarning, module="skimage.measure._regionprops")
 
@@ -178,7 +178,8 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
 
     print("Calculating corrected shape measurements for each nucleus...")
     measurements_df[['area_corrected', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
-    for row in tqdm(measurements_df.itertuples()):
+
+    for row in tqdm(measurements_df.itertuples(), total=len(measurements_df), desc="Calculating corrected shape measurements"):
         bbox_slice = row.slice
         corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
         measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
