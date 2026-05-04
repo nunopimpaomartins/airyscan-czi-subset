@@ -2,11 +2,14 @@ import os
 from pathlib import Path
 import argparse
 import tqdm
+import warnings
+warnings.filterwarnings("ignore", category=UserWarning, module="skimage.measure._regionprops")
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
 from skimage.measure import regionprops, regionprops_table, label
 from skimage.filters import threshold_otsu
+from skimage.morphology import remove_small_objects
 import pandas as pd
 
 from ome_zarr.io import parse_url
@@ -78,7 +81,7 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
         area_nhsester_corrected = nhsester_crop_measurements[0].area
     
     nhsester_volume_fraction = area_nhsester_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
-    return [solidity_corrected, euler_number_corrected, area_corrected, area_nhsester_corrected, dna_volume_fraction, nhsester_volume_fraction]
+    return [area_corrected, euler_number_corrected, solidity_corrected, area_nhsester_corrected, dna_volume_fraction, nhsester_volume_fraction]
 
 
 def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=True, min_voxel_volume=1000):
@@ -136,49 +139,51 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
     nuclei_mask = nuclei_gauss > threshold_nuclei_otsu
     nuclei_labels = label(nuclei_mask)
 
-    print(f"Found {nuclei_labels.max()} objects in the nuclei channel")
+    print(f"Found {nuclei_labels.max()} objects in the nuclei channel, before filtering")    
+    
+    nuclei_labels_filtered = remove_small_objects(nuclei_labels, min_size=min_voxel_volume)
+    print(f"Found {nuclei_labels_filtered.max()} objects in the nuclei channel, after filtering with min size {min_voxel_volume} voxels")
 
     measurements = regionprops_table(
-        nuclei_labels,
+        nuclei_labels_filtered,
         intensity_image=nuclei_channel,
         properties=[
             'label',
             'area',
             'area_bbox',
             'area_convex',
-            'axis_major_length',
-            'axis_minor_length',
             'bbox',
             'centroid',
-            'euler_number',
             'intensity_mean',
             'intensity_max',
             'intensity_min',
-            'intensity_median',
             'intensity_std',
-            'moments',
             'num_pixels',
             'slice',
+            'axis_major_length',
+            'axis_minor_length',
+            'moments',
+            'euler_number',
             'solidity'
         ]
     )
     measurements_df = pd.DataFrame(measurements)
-    measurements_df_filtered = measurements_df[measurements_df['area'] > min_voxel_volume]
-    print(f"Found {len(measurements_df_filtered)} objects with area > {min_voxel_volume} voxels")
+    # measurements_df_filtered = measurements_df[measurements_df['area'] > min_voxel_volume]
+    print(f"Found {len(measurements_df)} objects with area > {min_voxel_volume} voxels")
 
-    measurements_df_filtered[['area_corrected', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
-    for row in measurements_df_filtered.itertuples():
+    measurements_df[['area_corrected', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
+    for row in tqdm(measurements_df.itertuples()):
         bbox_slice = row.slice
         corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
-        measurements_df_filtered.at[row.Index, 'area_corrected'] = corrected_stats[0]
-        measurements_df_filtered.at[row.Index, 'euler_number_corrected'] = corrected_stats[1]
-        measurements_df_filtered.at[row.Index, 'solidity_corrected'] = corrected_stats[2]
-        measurements_df_filtered.at[row.Index, 'area_nhsester_corrected'] = corrected_stats[3]
-        measurements_df_filtered.at[row.Index, 'dna_volume_fraction'] = corrected_stats[4]
-        measurements_df_filtered.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats[5]
+        measurements_df.at[row.Index, 'area_corrected'] = corrected_stats[0]
+        measurements_df.at[row.Index, 'euler_number_corrected'] = corrected_stats[1]
+        measurements_df.at[row.Index, 'solidity_corrected'] = corrected_stats[2]
+        measurements_df.at[row.Index, 'area_nhsester_corrected'] = corrected_stats[3]
+        measurements_df.at[row.Index, 'dna_volume_fraction'] = corrected_stats[4]
+        measurements_df.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats[5]
 
     print(f"Saving measurements to {save_path}")
-    measurements_df_filtered.to_csv(save_path / f"{filename}_nuclei_measurements.csv")
+    measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements.csv")
     print("Done.")
 
 if __name__ == "__main__":
