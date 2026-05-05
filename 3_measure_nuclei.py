@@ -19,7 +19,6 @@ from ome_zarr.utils import info
 parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFormatter)
 parser.add_argument("--dataPath", help="The path to your data")
 parser.add_argument("--extension", help="The extension of the files to be processed", default='.zarr')
-parser.add_argument("--resolutionLevel", help="The resolution level to be processed", default=1, type=int)
 parser.add_argument("--computeDaskData", help="Load full data to memory or chunked with dask", default=True, type=bool)
 parser.add_argument("--minVoxelVolume", help="The minimum volume of objects to be considered in nb of voxels", default=1000, type=int)
 
@@ -91,7 +90,7 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
     }
 
 
-def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=True, min_voxel_volume=1000):
+def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volume=1000):
     data_path = Path(datapath)
     filename = data_path.stem
     print(f"Processing {filename}...")
@@ -116,7 +115,8 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
     zarr_info = info(data_path)
     img_info = list(zarr_info)[0].data
 
-    # TODO: get resolution level automatically
+    resolution_level = int(input("Please enter the resolution level to process (0 for highest resolution): "))
+    print(f"Resolution level set: {resolution_level}")
 
     # Get the image data at the specified resolution level
     image_node = nodes[0]
@@ -194,4 +194,4 @@ def main(datapath='.', extension='.tif', resolution_level=1, compute_dask_data=T
     print("Done.")
 
 if __name__ == "__main__":
-    main(datapath=args.dataPath, extension=args.extension, resolution_level=args.resolutionLevel, compute_dask_data=args.computeDaskData, min_voxel_volume=args.minVoxelVolume)
+    main(datapath=args.dataPath, extension=args.extension, compute_dask_data=args.computeDaskData, min_voxel_volume=args.minVoxelVolume)
