@@ -34,6 +34,7 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
     Get corrected shape measurements for a nucleus by combining the information from the nucleus channel and the nhsester channel. The corrected shape measurements are calculated by creating a combined (union) mask of the nucleus and nhsester channels. The corrected shape measurements include solidity, euler number, area, area of nhsester channel, dna area fraction and nhsester area fraction.
     returns: a dictionary with the following keys and values:
     - area_corrected: volume of DNA in unblurred data
+    - nucleus_total_area: volume of the combined mask convex hull
     - euler_number_corrected: euler number of DNA in unblurred data
     - solidity_corrected: solidity of DNA area
     - area_nhsester_corrected: volume of nhsester nucleoli
@@ -56,7 +57,12 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
     combined_labels = label(combined_mask)
     combined_measurements = regionprops(combined_labels)
 
-    nucleus_total_area = combined_measurements[0].area_convex
+    nucleus_total_area = 0
+    if len(combined_measurements) > 1:
+        for measurement in combined_measurements:
+            nucleus_total_area += measurement.area_convex
+    else:
+        nucleus_total_area = combined_measurements[0].area_convex
 
     # if multiple labels are found in a nucleus
     area_corrected = 0
@@ -82,6 +88,7 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
     nhsester_volume_fraction = area_nhsester_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
     return {
         "area_corrected": area_corrected,
+        "nucleus_total_area": nucleus_total_area,
         "euler_number_corrected": euler_number_corrected,
         "solidity_corrected": solidity_corrected,
         "area_nhsester_corrected": area_nhsester_corrected,
@@ -177,12 +184,13 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
     measurements_df = pd.DataFrame(measurements)
 
     print("Calculating corrected shape measurements for each nucleus...")
-    measurements_df[['area_corrected', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
+    measurements_df[['area_corrected', 'nucleus_total_area', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
 
     for row in tqdm(measurements_df.itertuples(), total=len(measurements_df), desc="Calculating corrected shape measurements"):
         bbox_slice = row.slice
         corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
         measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
+        measurements_df.at[row.Index, 'nucleus_total_area'] = corrected_stats['nucleus_total_area']
         measurements_df.at[row.Index, 'euler_number_corrected'] = corrected_stats['euler_number_corrected']
         measurements_df.at[row.Index, 'solidity_corrected'] = corrected_stats['solidity_corrected']
         measurements_df.at[row.Index, 'area_nhsester_corrected'] = corrected_stats['area_nhsester_corrected']
@@ -190,7 +198,7 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
         measurements_df.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats['nhsester_volume_fraction']
 
     print(f"Saving measurements to {save_path}")
-    measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements.csv")
+    measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements_reslevel_{resolution_level}.csv")
     print("Done.")
 
 if __name__ == "__main__":
