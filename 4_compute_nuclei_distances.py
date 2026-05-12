@@ -50,15 +50,14 @@ def compute_closest_neighbors(distance_array):
         silhouette_scores.append(score)
     
     best_n = range(2, 10)[np.argmax(silhouette_scores)]
-    print(f"Best number of guassians for GMM: {best_n}")
+    # print(f"Best number of guassians for GMM: {best_n}")
 
-    n_components = best_n
-    gmm = GaussianMixture(n_components=n_components, random_state=42)
+    gmm = GaussianMixture(n_components=best_n, random_state=42)
     gmm.fit(data_reshaped)
     means = gmm.means_.flatten()
     stds = np.sqrt(gmm.covariances_.flatten())
     weights = gmm.weights_.flatten()
-    print(f"GMM means: {means}, stds: {stds}, weights: {weights}")
+    # print(f"GMM means: {means}, stds: {stds}, weights: {weights}")
 
     return means.min(), stds[np.argmin(means)]
 
@@ -75,12 +74,12 @@ def main(datapath='.', pixelInfoPath=None):
 
     df_pixel_info = pd.read_csv(pixel_information_path / pixel_information_tablename)
 
-    for filename in tqdm(filelist):
+    for filename in filelist:
         print(f"Processing {filename}...")
 
         original_filename = filename[:filename.index('_nuclei_measurements')]
         pixel_scale = df_pixel_info[df_pixel_info['filename'] == original_filename][['pixel_size_0', 'pixel_size_1', 'pixel_size_2']].values[0]
-        print(f"Pixel scale for {original_filename}: {pixel_scale}")
+        print(f"Pixel scale for: {pixel_scale}")
 
         dataframe = pd.read_csv(data_path / filename)
         dataframe[['area_corrected_scaled', 'distance_closest_neighbor', 'distance_avg_closest_neighbor', 'distance_std_closest_neighbor']] = np.nan
@@ -88,7 +87,10 @@ def main(datapath='.', pixelInfoPath=None):
         print("Calculating scaled volume (in microns^3) and distances...")
         pixel_volume = pixel_scale[0] * pixel_scale[1] * pixel_scale[2]
         for row in tqdm(dataframe.itertuples(), total=len(dataframe)):
-            volume_corrected = row.area_corrected * pixel_volume
+            if row.area_corrected == row.num_pixels:
+                volume_corrected = row.area_corrected * pixel_volume
+            else:
+                volume_corrected = row.num_pixels * pixel_volume
             dataframe.at[row.Index, 'area_corrected_scaled'] = volume_corrected
 
             distances = []
@@ -97,16 +99,16 @@ def main(datapath='.', pixelInfoPath=None):
                     distance_scaled = euclidean_distance_scaled(dataframe, row.Index, other_row.Index, pixel_scale)
                     distances.append(distance_scaled)
             
-            distances = distances.sort()
+            distances.sort()
             dataframe.at[row.Index, 'distance_closest_neighbor'] = distances[0]
             avg_closest_neighbors, std_closest_neighbors = compute_closest_neighbors(distances)
             dataframe.at[row.Index, 'distance_avg_closest_neighbor'] = avg_closest_neighbors
             dataframe.at[row.Index, 'distance_std_closest_neighbor'] = std_closest_neighbors
         
-        
-
-    print(f"Saving measurements to {save_path}")
-    measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements_reslevel_{resolution_level}.csv")
+        print(f"Saving measurements to {data_path / filename}")
+        dataframe.to_csv(data_path / f"{filename}", )
+        print("=============")
+    
     print("Done.")
 
 if __name__ == "__main__":
