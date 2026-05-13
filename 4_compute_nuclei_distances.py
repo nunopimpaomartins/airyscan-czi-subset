@@ -50,14 +50,12 @@ def compute_closest_neighbors(distance_array):
         silhouette_scores.append(score)
     
     best_n = range(2, 10)[np.argmax(silhouette_scores)]
-    # print(f"Best number of guassians for GMM: {best_n}")
 
     gmm = GaussianMixture(n_components=best_n, random_state=42)
     gmm.fit(data_reshaped)
     means = gmm.means_.flatten()
     stds = np.sqrt(gmm.covariances_.flatten())
-    weights = gmm.weights_.flatten()
-    # print(f"GMM means: {means}, stds: {stds}, weights: {weights}")
+    # weights = gmm.weights_.flatten()
 
     return means.min(), stds[np.argmin(means)]
 
@@ -106,7 +104,7 @@ def main(datapath='.', pixelInfoPath=None):
             dataframe.at[row.Index, 'distance_std_closest_neighbor'] = std_closest_neighbors
         
         print(f"Saving measurements to {data_path / filename}")
-        dataframe.to_csv(data_path / f"{filename}", )
+        dataframe.to_csv(data_path / f"{filename}", index=False)
         print("=============")
     
     print("Done.")
