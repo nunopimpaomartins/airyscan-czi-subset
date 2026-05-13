@@ -91,17 +91,22 @@ def main(datapath='.', pixelInfoPath=None):
                 volume_corrected = row.num_pixels * pixel_volume
             dataframe.at[row.Index, 'area_corrected_scaled'] = volume_corrected
 
-            distances = []
-            for other_row in dataframe.itertuples():
-                if row.Index != other_row.Index:
-                    distance_scaled = euclidean_distance_scaled(dataframe, row.Index, other_row.Index, pixel_scale)
-                    distances.append(distance_scaled)
-            
-            distances.sort()
-            dataframe.at[row.Index, 'distance_closest_neighbor'] = distances[0]
-            avg_closest_neighbors, std_closest_neighbors = compute_closest_neighbors(distances)
-            dataframe.at[row.Index, 'distance_avg_closest_neighbor'] = avg_closest_neighbors
-            dataframe.at[row.Index, 'distance_std_closest_neighbor'] = std_closest_neighbors
+            if volume_corrected > 500.: #TODO: better approach to set threshold, rejects small segmentation mistakes
+                distances = []
+                for other_row in dataframe.itertuples():
+                    if row.Index != other_row.Index and other_row.area_corrected > 500.:
+                        distance_scaled = euclidean_distance_scaled(dataframe, row.Index, other_row.Index, pixel_scale)
+                        distances.append(distance_scaled)
+                
+                distances.sort()
+                dataframe.at[row.Index, 'distance_closest_neighbor'] = distances[0]
+                avg_closest_neighbors, std_closest_neighbors = compute_closest_neighbors(distances)
+                dataframe.at[row.Index, 'distance_avg_closest_neighbor'] = avg_closest_neighbors
+                dataframe.at[row.Index, 'distance_std_closest_neighbor'] = std_closest_neighbors
+            else:
+                dataframe.at[row.Index, 'distance_closest_neighbor'] = np.nan
+                dataframe.at[row.Index, 'distance_avg_closest_neighbor'] = np.nan
+                dataframe.at[row.Index, 'distance_std_closest_neighbor'] = np.nan
         
         print(f"Saving measurements to {data_path / filename}")
         dataframe.to_csv(data_path / f"{filename}", index=False)
