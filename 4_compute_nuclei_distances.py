@@ -80,15 +80,14 @@ def main(datapath='.', pixelInfoPath=None):
         print(f"Pixel scale for: {pixel_scale}")
 
         dataframe = pd.read_csv(data_path / filename)
-        dataframe[['area_corrected_scaled', 'distance_closest_neighbor', 'distance_avg_closest_neighbor', 'distance_std_closest_neighbor']] = np.nan
+        dataframe[['area_scaled', 'area_corrected_scaled', 'distance_closest_neighbor', 'distance_avg_closest_neighbor', 'distance_std_closest_neighbor']] = np.nan
 
         print("Calculating scaled volume (in microns^3) and distances...")
         pixel_volume = pixel_scale[0] * pixel_scale[1] * pixel_scale[2]
         for row in tqdm(dataframe.itertuples(), total=len(dataframe)):
-            if row.area_corrected == row.num_pixels:
-                volume_corrected = row.area_corrected * pixel_volume
-            else:
-                volume_corrected = row.num_pixels * pixel_volume
+            volume = row.area * pixel_volume
+            dataframe.at[row.Index, 'area_scaled'] = volume
+            volume_corrected = row.area_corrected * pixel_volume
             dataframe.at[row.Index, 'area_corrected_scaled'] = volume_corrected
 
             if volume_corrected > 500.: #TODO: better approach to set threshold, rejects small segmentation mistakes
