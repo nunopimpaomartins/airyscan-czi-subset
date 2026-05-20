@@ -97,6 +97,30 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
     }
 
 
+def distance_to_image_center(centroid, image_shape, pixel_scale):
+    '''
+    Calculate the distance of an object centroid to the center of the image. The distance is calculated in 3D and takes into account the pixel scale of the image.
+    '''
+    image_center = np.array(image_shape) / 2
+    distance = np.linalg.norm((np.array(centroid) - image_center) * np.array(pixel_scale))
+    return distance
+
+
+def distance_to_image_border(centroid, image_shape, pixel_scale):
+    '''
+    Calculate the distance of an object centroid to the closest border of the image. The distance is calculated in 3D and takes into account the pixel scale of the image.
+    '''
+    distances_to_borders = [
+        centroid[0] * pixel_scale[0], # distance to top border
+        (image_shape[0] - centroid[0]) * pixel_scale[0], # distance to bottom border
+        centroid[1] * pixel_scale[1], # distance to left border
+        (image_shape[1] - centroid[1]) * pixel_scale[1], # distance to right border
+        centroid[2] * pixel_scale[2], # distance to front border
+        (image_shape[2] - centroid[2]) * pixel_scale[2] # distance to back border
+    ]
+    return min(distances_to_borders)
+
+
 def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volume=1000):
     data_path = Path(datapath)
     filename = data_path.stem
@@ -140,6 +164,7 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
     # Read pixel scale from metadata
     metadata = image_node.metadata
     pixel_sizes = metadata['coordinateTransformations'][resolution_level][0]["scale"]
+    pixel_sizes = pixel_sizes[-3:]
     print("Pixel scale (TCZYX)", pixel_sizes)
 
     nhsester_channel = image_array[0] # TODO: get channel index from metadata
@@ -176,18 +201,21 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
             'slice',
             'axis_major_length',
             'axis_minor_length',
-            # 'moments',
+            'moments',
             'euler_number',
             'solidity'
-        ]
+        ],
+        spacing=tuple(pixel_sizes)
     )
     measurements_df = pd.DataFrame(measurements)
 
     print("Calculating corrected shape measurements for each nucleus...")
-    measurements_df[['area_corrected', 'nucleus_total_area', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction']] = np.nan
+
+    measurements_df[['area_corrected', 'nucleus_total_area', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction', 'distance_to_center', 'distance_to_border']] = np.nan
 
     for row in tqdm(measurements_df.itertuples(), total=len(measurements_df), desc="Calculating corrected shape measurements"):
         bbox_slice = row.slice
+        centroid = [measurements_df.at[row.Index, 'centroid-0'], measurements_df.at[row.Index, 'centroid-1'], measurements_df.at[row.Index, 'centroid-2']]
         corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
         measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
         measurements_df.at[row.Index, 'nucleus_total_area'] = corrected_stats['nucleus_total_area']
@@ -196,6 +224,8 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
         measurements_df.at[row.Index, 'area_nhsester_corrected'] = corrected_stats['area_nhsester_corrected']
         measurements_df.at[row.Index, 'dna_volume_fraction'] = corrected_stats['dna_volume_fraction']
         measurements_df.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats['nhsester_volume_fraction']
+        measurements_df.at[row.Index, 'distance_to_center'] = distance_to_image_center(centroid, image_array.shape[1:], pixel_sizes)
+        measurements_df.at[row.Index, 'distance_to_border'] = distance_to_image_border(centroid, image_array.shape[1:], pixel_sizes)
 
     print(f"Saving measurements to {save_path}")
     measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements_reslevel_{resolution_level}.csv")
