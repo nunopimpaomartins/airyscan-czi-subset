@@ -33,6 +33,18 @@ def euclidean_distance_scaled(df, cell1_idx, cell2_idx, pixel_scale):
     return ((pixel_scale[0] * (cell1[0] - cell2[0])) ** 2 + (pixel_scale[1] * (cell1[1] - cell2[1])) ** 2 + (pixel_scale[2] * (cell1[2] - cell2[2])) ** 2) ** 0.5
 
 
+def euclidean_distance(df, cell1_idx, cell2_idx):
+    '''
+    Calculate the euclidean distance between two cells, in microns.
+    df: dataframe with the nuclei measurements, should contain columns 'centroid-0', 'centroid-1', 'centroid-2'
+    cell1_idx: index of first cell to compare
+    cell2_idx: index of second cell to compare
+    '''
+    cell1 = [df.at[cell1_idx, "centroid-0"], df.at[cell1_idx, "centroid-1"], df.at[cell1_idx, "centroid-2"]]
+    cell2 = [df.at[cell2_idx, "centroid-0"], df.at[cell2_idx, "centroid-1"], df.at[cell2_idx, "centroid-2"]]
+    return ((cell1[0] - cell2[0]) ** 2 + (cell1[1] - cell2[1]) ** 2 + (cell1[2] - cell2[2]) ** 2) ** 0.5
+
+
 def compute_closest_neighbors(distance_array):
     '''
     Computes the average distance to the closest neighbors for each cell  by doing gaussian mixture modeling and obtaining the leftmost component mean.
@@ -80,21 +92,37 @@ def main(datapath='.', pixelInfoPath=None):
         print(f"Pixel scale for: {pixel_scale}")
 
         dataframe = pd.read_csv(data_path / filename)
-        dataframe[['area_scaled', 'area_corrected_scaled', 'distance_closest_neighbor', 'distance_avg_closest_neighbor', 'distance_std_closest_neighbor']] = np.nan
+        dataframe[[
+            'area_scaled', 
+            'area_corrected_scaled', 
+            'distance_closest_neighbor', 
+            'distance_avg_closest_neighbor', 
+            'distance_std_closest_neighbor', 
+            'aspect_ratio',
+            'nucleus_total_area_scaled',
+            'area_nhsester_corrected_scaled',
+        ]] = np.nan
 
         print("Calculating scaled volume (in microns^3) and distances...")
         pixel_volume = pixel_scale[0] * pixel_scale[1] * pixel_scale[2]
         for row in tqdm(dataframe.itertuples(), total=len(dataframe)):
-            volume = row.area * pixel_volume
-            dataframe.at[row.Index, 'area_scaled'] = volume
+            if row.area == row.num_pixels:
+                volume = row.area * pixel_volume
+                dataframe.at[row.Index, 'area_scaled'] = volume
+            else:
+                volume = row.area
             volume_corrected = row.area_corrected * pixel_volume
             dataframe.at[row.Index, 'area_corrected_scaled'] = volume_corrected
+
+            dataframe.at[row.Index, 'aspect_ratio'] = row.axis_major_length / row.axis_minor_length if row.axis_minor_length > 0 else np.nan
+            dataframe.at[row.Index, 'nucleus_total_area_scaled'] = row.nucleus_total_area * pixel_volume
+            dataframe.at[row.Index, 'area_nhsester_corrected_scaled'] = row.area_nhsester_corrected * pixel_volume
 
             if volume_corrected > 500.: #TODO: better approach to set threshold, rejects small segmentation mistakes
                 distances = []
                 for other_row in dataframe.itertuples():
                     if row.Index != other_row.Index and other_row.area_corrected > 500.:
-                        distance_scaled = euclidean_distance_scaled(dataframe, row.Index, other_row.Index, pixel_scale)
+                        distance_scaled = euclidean_distance(dataframe, row.Index, other_row.Index)
                         distances.append(distance_scaled)
                 
                 distances.sort()
