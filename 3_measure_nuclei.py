@@ -21,6 +21,7 @@ parser.add_argument("--dataPath", help="The path to your data")
 parser.add_argument("--extension", help="The extension of the files to be processed", default='.zarr')
 parser.add_argument("--computeDaskData", help="Load full data to memory or chunked with dask", default=True, type=bool)
 parser.add_argument("--minVoxelVolume", help="The minimum volume of objects to be considered in nb of voxels", default=1000, type=int)
+parser.add_argument("--sigmaGaussian", help="The sigma for the gaussian filter applied to the nuclei channel before thresholding", default=2, type=float)
 
 args = parser.parse_args()
 print(args.dataPath)
@@ -121,7 +122,7 @@ def distance_to_image_border(centroid, image_shape, pixel_scale):
     return min(distances_to_borders)
 
 
-def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volume=1000):
+def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volume=1000, sigma_gaussian=2):
     data_path = Path(datapath)
     filename = data_path.stem
     print(f"Processing {filename}...")
@@ -172,7 +173,7 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
 
     # Nuclei segmentation
     nuclei_gauss = nuclei_channel.copy()
-    nuclei_gauss = gaussian_filter(nuclei_channel, sigma=2) # TODO: get sigma from arguments
+    nuclei_gauss = gaussian_filter(nuclei_channel, sigma=sigma_gaussian)
 
     threshold_nuclei_otsu = threshold_otsu(nuclei_gauss)
     nuclei_mask = nuclei_gauss > threshold_nuclei_otsu
@@ -232,4 +233,4 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
     print("Done.")
 
 if __name__ == "__main__":
-    main(datapath=args.dataPath, extension=args.extension, compute_dask_data=args.computeDaskData, min_voxel_volume=args.minVoxelVolume)
+    main(datapath=args.dataPath, extension=args.extension, compute_dask_data=args.computeDaskData, min_voxel_volume=args.minVoxelVolume, sigma_gaussian=args.sigmaGaussian)
