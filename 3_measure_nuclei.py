@@ -20,6 +20,7 @@ parser = argparse.ArgumentParser(formatter_class=argparse.ArgumentDefaultsHelpFo
 parser.add_argument("--dataPath", help="The path to your data")
 parser.add_argument("--extension", help="The extension of the files to be processed", default='.zarr')
 parser.add_argument("--computeDaskData", help="Load full data to memory or chunked with dask", default=True, type=bool)
+parser.add_argument("--resolutionLevel", help="The resolution level to process, 0 for highest resolution", default=None, type=int)
 parser.add_argument("--minVoxelVolume", help="The minimum volume of objects to be considered in nb of voxels", default=1000, type=int)
 parser.add_argument("--sigmaGaussian", help="The sigma for the gaussian filter applied to the nuclei channel before thresholding", default=2, type=float)
 
@@ -122,7 +123,7 @@ def distance_to_image_border(centroid, image_shape, pixel_scale):
     return min(distances_to_borders)
 
 
-def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volume=1000, sigma_gaussian=2):
+def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_level=None, min_voxel_volume=1000, sigma_gaussian=2):
     data_path = Path(datapath)
     filename = data_path.stem
     print(f"Processing {filename}...")
@@ -147,8 +148,18 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
     zarr_info = info(data_path)
     img_info = list(zarr_info)[0].data
 
-    resolution_level = int(input("Please enter the resolution level to process (0 for highest resolution): "))
-    print(f"Resolution level set: {resolution_level}")
+    if resolution_level is None:
+        # if resolution level is not set, ask user to input it along with minimum voxel volume and sigma for gaussian filter
+        resolution_level = int(input("Please enter the resolution level to process (0 for highest resolution): "))
+        min_voxel_volume_input = input("Please enter the minimum volume of objects to be considered in nb of voxels (e.g. 1000): ")
+        sigma_gaussian_input = input("Please enter the sigma for the gaussian filter applied to the nuclei channel before thresholding (e.g. 2): ")
+    
+    if len(min_voxel_volume_input) > 0:
+        min_voxel_volume = int(min_voxel_volume_input)
+    if len(sigma_gaussian_input) > 0:
+        sigma_gaussian = float(sigma_gaussian_input)
+    
+    print(f"Resolution level set: {resolution_level}; Minimum voxel volume: {min_voxel_volume}; Sigma for gaussian filter: {sigma_gaussian}")
 
     # Get the image data at the specified resolution level
     image_node = nodes[0]
@@ -233,4 +244,4 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, min_voxel_volum
     print("Done.")
 
 if __name__ == "__main__":
-    main(datapath=args.dataPath, extension=args.extension, compute_dask_data=args.computeDaskData, min_voxel_volume=args.minVoxelVolume, sigma_gaussian=args.sigmaGaussian)
+    main(datapath=args.dataPath, extension=args.extension, compute_dask_data=args.computeDaskData, resolution_level=args.resolutionLevel, min_voxel_volume=args.minVoxelVolume, sigma_gaussian=args.sigmaGaussian)
