@@ -213,9 +213,12 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
     nhsester_channel = image_array[0] # TODO: get channel index from metadata
     nuclei_channel = image_array[2]
 
+    # image normalization
+    nuclei_channel_normalized = (nuclei_channel - nuclei_channel.min()) / (nuclei_channel.max() - nuclei_channel.min())
+    nhsester_channel_normalized = (nhsester_channel - nhsester_channel.min()) / (nhsester_channel.max() - nhsester_channel.min())
+
     # Nuclei segmentation
-    nuclei_gauss = nuclei_channel.copy()
-    nuclei_gauss = gaussian_filter(nuclei_channel, sigma=sigma_gaussian)
+    nuclei_gauss = gaussian_filter(nuclei_channel_normalized, sigma=sigma_gaussian)
 
     threshold_nuclei_otsu = threshold_otsu(nuclei_gauss)
     nuclei_mask = nuclei_gauss > threshold_nuclei_otsu
@@ -228,7 +231,7 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
 
     measurements = regionprops_table(
         nuclei_labels_filtered,
-        intensity_image=nuclei_channel,
+        intensity_image=nuclei_channel_normalized,
         properties=[
             'label',
             'area',
@@ -260,7 +263,7 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
     for row in tqdm(measurements_df.itertuples(), total=len(measurements_df), desc="Calculating corrected shape measurements"):
         bbox_slice = row.slice
         centroid = [measurements_df.at[row.Index, 'centroid-0'], measurements_df.at[row.Index, 'centroid-1'], measurements_df.at[row.Index, 'centroid-2']]
-        corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
+        corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel_normalized, nhsester_channel_normalized, threshold_nuclei_otsu)
         measurements_df.at[row.Index, 'nucleus_total_area'] = corrected_stats['nucleus_total_area']
         measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
         measurements_df.at[row.Index, 'euler_number_corrected'] = corrected_stats['euler_number_corrected']
@@ -268,13 +271,13 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
         measurements_df.at[row.Index, 'dna_volume_fraction'] = corrected_stats['dna_volume_fraction']
         measurements_df.at[row.Index, 'distance_to_center'] = distance_to_image_center(centroid, image_array.shape[1:], pixel_sizes)
         measurements_df.at[row.Index, 'distance_to_border'] = distance_to_image_border(centroid, image_array.shape[1:], pixel_sizes)
-        measurements_df.at[row.Index, 'shannon_entropy_nuclei'] = shannon_entropy(nuclei_channel[bbox_slice])
-        measurements_df.at[row.Index, 'shannon_entropy_mask_nuclei'] = get_shannon_entropy_mask(nuclei_channel, nuclei_labels_filtered, row.label)
+        measurements_df.at[row.Index, 'shannon_entropy_nuclei'] = shannon_entropy(nuclei_channel_normalized[bbox_slice])
+        # measurements_df.at[row.Index, 'shannon_entropy_mask_nuclei'] = get_shannon_entropy_mask(nuclei_channel, nuclei_labels_filtered, row.label)
         measurements_df.at[row.Index, 'nhsester_mean_intensity'] = corrected_stats['nhsester_mean_intensity']
         measurements_df.at[row.Index, 'nhsester_std_intensity'] = corrected_stats['nhsester_std_intensity']
         measurements_df.at[row.Index, 'nhsester_max_intensity'] = corrected_stats['nhsester_max_intensity']
         measurements_df.at[row.Index, 'nhsester_min_intensity'] = corrected_stats['nhsester_min_intensity']
-        measurements_df.at[row.Index, 'shannon_entropy_nhsester'] = shannon_entropy(nhsester_channel[bbox_slice])
+        measurements_df.at[row.Index, 'shannon_entropy_nhsester'] = shannon_entropy(nhsester_channel_normalized[bbox_slice])
         measurements_df.at[row.Index, 'euler_number_nucleoli_corrected'] = corrected_stats['euler_number_nucleoli_corrected']
         measurements_df.at[row.Index, 'area_nucleolus_corrected'] = corrected_stats['area_nucleolus_corrected']
         measurements_df.at[row.Index, 'nucleolus_volume_fraction'] = corrected_stats['nucleolus_volume_fraction']
