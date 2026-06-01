@@ -176,15 +176,18 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
     zarr_info = info(data_path)
     img_info = list(zarr_info)[0].data
 
+    min_voxel_volume_input = None
+    sigma_gaussian_input = None
+
     if resolution_level is None:
         # if resolution level is not set, ask user to input it along with minimum voxel volume and sigma for gaussian filter
         resolution_level = int(input("Please enter the resolution level to process (0 for highest resolution): "))
         min_voxel_volume_input = input("Please enter the minimum volume of objects to be considered in nb of voxels (e.g. 1000): ")
         sigma_gaussian_input = input("Please enter the sigma for the gaussian filter applied to the nuclei channel before thresholding (e.g. 2): ")
     
-    if len(min_voxel_volume_input) > 0:
+    if min_voxel_volume_input is not None and len(min_voxel_volume_input) > 0:
         min_voxel_volume = int(min_voxel_volume_input)
-    if len(sigma_gaussian_input) > 0:
+    if sigma_gaussian_input is not None and len(sigma_gaussian_input) > 0:
         sigma_gaussian = float(sigma_gaussian_input)
     
     print(f"Resolution level set: {resolution_level}; Minimum voxel volume: {min_voxel_volume}; Sigma for gaussian filter: {sigma_gaussian}")
