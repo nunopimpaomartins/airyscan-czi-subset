@@ -7,7 +7,7 @@ warnings.filterwarnings("ignore", category=UserWarning, module="skimage.measure.
 
 import numpy as np
 from scipy.ndimage import gaussian_filter
-from skimage.measure import regionprops, regionprops_table, label
+from skimage.measure import regionprops, regionprops_table, label, shannon_entropy
 from skimage.filters import threshold_otsu
 from skimage.morphology import remove_small_objects
 import pandas as pd
@@ -31,20 +31,25 @@ if args.dataPath is None:
     print("Please provide a data path")
     exit(1)
 
-def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nhsester_channel, nucleus_threshold):
+def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, image_nhsester_channel, nucleus_threshold):
     '''
     Get corrected shape measurements for a nucleus by combining the information from the nucleus channel and the nhsester channel. The corrected shape measurements are calculated by creating a combined (union) mask of the nucleus and nhsester channels. The corrected shape measurements include solidity, euler number, area, area of nhsester channel, dna area fraction and nhsester area fraction.
     returns: a dictionary with the following keys and values:
     - area_corrected: volume of DNA in unblurred data
     - nucleus_total_area: volume of the combined mask convex hull
     - euler_number_corrected: euler number of DNA in unblurred data
+    - euler_number_nucleoli_corrected: euler number of nhsester in unblurred data, which is the nucleolus
     - solidity_corrected: solidity of DNA area
-    - area_nhsester_corrected: volume of nhsester nucleoli
+    - area_nucleolus_corrected: volume of nhsester nucleoli
     - dna_volume_fraction: fraction of DNA volume in the combined mask convex hull
-    - nhsester_volume_fraction: fraction of nhsester volume in the combined mask convex hull
+    - nucleolus_volume_fraction: fraction of nhsester volume in the combined mask convex hull
+    - nhsester_mean_intensity: mean intensity of nhsester in the nucleus area
+    - nhsester_std_intensity: std intensity of nhsester in the nucleus area
+    - nhsester_max_intensity: max intensity of nhsester in the nucleus area
+    - nhsester_min_intensity: min intensity of nhsester in the nucleus area
     '''
     nucleus_crop = image_nucleus_channel[bbox_slice]
-    nhsester_crop = iamge_nhsester_channel[bbox_slice]
+    nhsester_crop = image_nhsester_channel[bbox_slice]
 
     nucleus_crop_mask = nucleus_crop > nucleus_threshold
     nucleus_crop_labels = label(nucleus_crop_mask)
@@ -80,22 +85,35 @@ def get_corrected_shape_measurements(bbox_slice, image_nucleus_channel, iamge_nh
     solidity_corrected = area_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
     dna_volume_fraction = area_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
 
-    area_nhsester_corrected = 0
+    area_nucleolus_corrected = 0
+    euler_number_nucleoli_corrected = 0
     if len(nhsester_crop_measurements) > 1:
         for measurement in nhsester_crop_measurements:
-            area_nhsester_corrected += measurement.area
+            area_nucleolus_corrected += measurement.area
+            euler_number_nucleoli_corrected += measurement.euler_number
     else:
-        area_nhsester_corrected = nhsester_crop_measurements[0].area
+        area_nucleolus_corrected = nhsester_crop_measurements[0].area
+        euler_number_nucleoli_corrected = nhsester_crop_measurements[0].euler_number
+
+    nhsester_mean_intensity = np.mean(nhsester_crop)
+    nhsester_std_intensity = np.std(nhsester_crop)
+    nhsester_max_intensity = np.max(nhsester_crop)
+    nhsester_min_intensity = np.min(nhsester_crop)
     
-    nhsester_volume_fraction = area_nhsester_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
+    nucleolus_volume_fraction = area_nucleolus_corrected / nucleus_total_area if nucleus_total_area > 0 else 0
     return {
         "area_corrected": area_corrected,
         "nucleus_total_area": nucleus_total_area,
         "euler_number_corrected": euler_number_corrected,
         "solidity_corrected": solidity_corrected,
-        "area_nhsester_corrected": area_nhsester_corrected,
+        "area_nucleolus_corrected": area_nucleolus_corrected,
+        "euler_number_nucleoli_corrected": euler_number_nucleoli_corrected,
         "dna_volume_fraction": dna_volume_fraction,
-        "nhsester_volume_fraction": nhsester_volume_fraction
+        "nucleolus_volume_fraction": nucleolus_volume_fraction,
+        "nhsester_mean_intensity": nhsester_mean_intensity,
+        "nhsester_std_intensity": nhsester_std_intensity,
+        "nhsester_max_intensity": nhsester_max_intensity,
+        "nhsester_min_intensity": nhsester_min_intensity
     }
 
 
@@ -121,6 +139,16 @@ def distance_to_image_border(centroid, image_shape, pixel_scale):
         (image_shape[2] - centroid[2]) * pixel_scale[2] # distance to back border
     ]
     return min(distances_to_borders)
+
+
+def get_shannon_entropy_mask(image, label_mask, label_id):
+    '''
+    Calculate the shannon entropy of the image masked by the object (nuclei or other)
+    return the shannon entropy of the masked image
+    '''
+    binary_mask = label_mask == label_id
+    masked_image = image * binary_mask
+    return shannon_entropy(masked_image)
 
 
 def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_level=None, min_voxel_volume=1000, sigma_gaussian=2):
@@ -214,6 +242,7 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
             'axis_major_length',
             'axis_minor_length',
             'moments',
+            'moments_central',
             'euler_number',
             'solidity'
         ],
@@ -223,21 +252,29 @@ def main(datapath='.', extension='.tif', compute_dask_data=True, resolution_leve
 
     print("Calculating corrected shape measurements for each nucleus...")
 
-    measurements_df[['area_corrected', 'nucleus_total_area', 'euler_number_corrected' , 'solidity_corrected', 'area_nhsester_corrected', 'dna_volume_fraction', 'nhsester_volume_fraction', 'distance_to_center', 'distance_to_border']] = np.nan
+    measurements_df[['area_corrected', 'nucleus_total_area', 'euler_number_corrected', 'euler_number_nucleoli_corrected', 'solidity_corrected', 'area_nucleolus_corrected', 'dna_volume_fraction', 'nucleolus_volume_fraction', 'distance_to_center', 'distance_to_border', 'shannon_entropy_nuclei', 'shannon_entropy_mask_nuclei', 'shannon_entropy_nhsester', 'nhsester_mean_intensity', 'nhsester_std_intensity', 'nhsester_max_intensity', 'nhsester_min_intensity']] = np.nan
 
     for row in tqdm(measurements_df.itertuples(), total=len(measurements_df), desc="Calculating corrected shape measurements"):
         bbox_slice = row.slice
         centroid = [measurements_df.at[row.Index, 'centroid-0'], measurements_df.at[row.Index, 'centroid-1'], measurements_df.at[row.Index, 'centroid-2']]
         corrected_stats = get_corrected_shape_measurements(bbox_slice, nuclei_channel, nhsester_channel, threshold_nuclei_otsu)
-        measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
         measurements_df.at[row.Index, 'nucleus_total_area'] = corrected_stats['nucleus_total_area']
+        measurements_df.at[row.Index, 'area_corrected'] = corrected_stats['area_corrected']
         measurements_df.at[row.Index, 'euler_number_corrected'] = corrected_stats['euler_number_corrected']
         measurements_df.at[row.Index, 'solidity_corrected'] = corrected_stats['solidity_corrected']
-        measurements_df.at[row.Index, 'area_nhsester_corrected'] = corrected_stats['area_nhsester_corrected']
         measurements_df.at[row.Index, 'dna_volume_fraction'] = corrected_stats['dna_volume_fraction']
-        measurements_df.at[row.Index, 'nhsester_volume_fraction'] = corrected_stats['nhsester_volume_fraction']
         measurements_df.at[row.Index, 'distance_to_center'] = distance_to_image_center(centroid, image_array.shape[1:], pixel_sizes)
         measurements_df.at[row.Index, 'distance_to_border'] = distance_to_image_border(centroid, image_array.shape[1:], pixel_sizes)
+        measurements_df.at[row.Index, 'shannon_entropy_nuclei'] = shannon_entropy(nuclei_channel[bbox_slice])
+        measurements_df.at[row.Index, 'shannon_entropy_mask_nuclei'] = get_shannon_entropy_mask(nuclei_channel, nuclei_labels_filtered, row.label)
+        measurements_df.at[row.Index, 'nhsester_mean_intensity'] = corrected_stats['nhsester_mean_intensity']
+        measurements_df.at[row.Index, 'nhsester_std_intensity'] = corrected_stats['nhsester_std_intensity']
+        measurements_df.at[row.Index, 'nhsester_max_intensity'] = corrected_stats['nhsester_max_intensity']
+        measurements_df.at[row.Index, 'nhsester_min_intensity'] = corrected_stats['nhsester_min_intensity']
+        measurements_df.at[row.Index, 'shannon_entropy_nhsester'] = shannon_entropy(nhsester_channel[bbox_slice])
+        measurements_df.at[row.Index, 'euler_number_nucleoli_corrected'] = corrected_stats['euler_number_nucleoli_corrected']
+        measurements_df.at[row.Index, 'area_nucleolus_corrected'] = corrected_stats['area_nucleolus_corrected']
+        measurements_df.at[row.Index, 'nucleolus_volume_fraction'] = corrected_stats['nucleolus_volume_fraction']
 
     print(f"Saving measurements to {save_path}")
     measurements_df.to_csv(save_path / f"{filename}_nuclei_measurements_reslevel_{resolution_level}.csv")
